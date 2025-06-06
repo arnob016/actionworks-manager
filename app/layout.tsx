@@ -1,14 +1,49 @@
 import type React from "react"
 import type { Metadata } from "next"
-import ClientLayout from "./clientLayout" // This is the client component wrapper
-import "./globals.css" // Ensure globals are imported here
+import { Inter, Roboto, Source_Code_Pro, Lato, Open_Sans } from "next/font/google"
+import "./globals.css"
+import { ThemeProvider } from "@/components/theme-provider" // Assuming this is your theme provider
+import { Toaster } from "sonner" // For toast notifications
+import { cn } from "@/lib/utils"
+
+// Initialize fonts and assign CSS variables
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+})
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-roboto",
+  display: "swap",
+})
+
+const sourceCodePro = Source_Code_Pro({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-source-code-pro",
+  display: "swap",
+})
+
+const lato = Lato({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-lato",
+  display: "swap",
+})
+
+const openSans = Open_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-open-sans",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
-  title: "Action",
-  description: "A dynamic and modular project and task management web app.",
-  icons: {
-    icon: "/action-logo.png",
-  },
+  title: "ActionWorks Manager",
+  description: "Manage your tasks efficiently.",
     generator: 'v0.dev'
 }
 
@@ -18,14 +53,16 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      {/* 
-      The <body> tag is rendered here by the Server Component.
-      ClientLayout, as a child, will use useEffect to manipulate 
-      document.documentElement and document.body classes/styles for dynamic theming.
-    */}
-      <body>
-        <ClientLayout>{children}</ClientLayout>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn(inter.variable, roboto.variable, sourceCodePro.variable, lato.variable, openSans.variable)}
+    >
+      <body className="min-h-screen bg-background font-sans antialiased">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {children}
+          <Toaster richColors />
+        </ThemeProvider>
       </body>
     </html>
   )

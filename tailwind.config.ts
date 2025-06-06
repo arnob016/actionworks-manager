@@ -84,6 +84,21 @@ const config = {
     },
   },
   plugins: [require("tailwindcss-animate")],
+  safelist: [
+    {
+      pattern:
+        /bg-(red|green|blue|pink|purple|indigo|yellow|gray|slate|orange|lime|teal|cyan|fuchsia|rose|amber|sky|violet|emerald)-(100|200|300|400|500|600|700|800|900)/,
+    },
+    {
+      pattern:
+        /text-(red|green|blue|pink|purple|indigo|yellow|gray|slate|orange|lime|teal|cyan|fuchsia|rose|amber|sky|violet|emerald)-(100|200|300|400|500|600|700|800|900)/,
+    },
+    {
+      pattern:
+        /border-(red|green|blue|pink|purple|indigo|yellow|gray|slate|orange|lime|teal|cyan|fuchsia|rose|amber|sky|violet|emerald)-(100|200|300|400|500|600|700|800|900)/,
+    },
+    // Add more patterns if other utilities like ring, fill, stroke are used with dynamic colors
+  ],
 } satisfies Config
 
 export default config
