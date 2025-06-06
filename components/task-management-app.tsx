@@ -24,31 +24,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const CURRENT_USER = "Zonaid" // This should ideally come from an auth system
 
 export function TaskManagementApp() {
+  // --- START: State Management Fix ---
+
+  // 1. Get preferences from the Zustand store. This is the single source of truth.
   const { preferences, setPreferences } = useUserPreferencesStore()
   const { viewMode: storedViewModeFromPrefs, darkMode: isDarkMode } = preferences
-  const { tasks, isLoading, fetchTasks } = useTaskStore()
-  const { teamMembers, productAreas } = useConfigStore()
 
-  useEffect(() => {
-    fetchTasks()
-  }, [fetchTasks])
-
-  const [currentView, _setCurrentView] = useState<ViewMode>(() => {
+  // 2. Derive the `currentView` on every render from the single source of truth.
+  //    This ensures we always use a valid view, even if the stored one is corrupted.
+  const currentView = useMemo(() => {
     const validViews: ViewMode[] = ["calendar", "kanban", "table", "timeline"]
     return validViews.includes(storedViewModeFromPrefs) ? storedViewModeFromPrefs : "kanban"
-  })
+  }, [storedViewModeFromPrefs])
 
-  // This callback is intended to be called by UI elements to change the view.
-  // It updates both local state and global preferences.
+  // 3. Use an effect ONLY to correct an invalid value in the store.
+  //    This runs if the derived `currentView` (the safe value) is different from what's in the store.
+  useEffect(() => {
+    if (currentView !== storedViewModeFromPrefs) {
+      setPreferences({ viewMode: currentView })
+    }
+  }, [currentView, storedViewModeFromPrefs, setPreferences])
+
+  // 4. The update function from the UI now only has one job: update the store.
   const updateCurrentView = useCallback(
-    (newViewCandidate: ViewMode) => {
-      const validViews: ViewMode[] = ["calendar", "kanban", "table", "timeline"]
-      const newView = validViews.includes(newViewCandidate) ? newViewCandidate : "kanban"
-
-      // Update local state first. React won't re-render if the value is the same.
-      _setCurrentView(newView)
-
-      // Only update global preferences if they are different.
+    (newView: ViewMode) => {
+      // Conditional check prevents unnecessary store updates if the view is already correct.
       if (storedViewModeFromPrefs !== newView) {
         setPreferences({ viewMode: newView })
       }
@@ -56,25 +56,14 @@ export function TaskManagementApp() {
     [storedViewModeFromPrefs, setPreferences],
   )
 
-  // This useEffect synchronizes the local `currentView` if the `storedViewModeFromPrefs` (global) changes.
-  // For example, if another tab changes the preference, or if the initial load had an invalid preference.
+  // --- END: State Management Fix ---
+
+  const { tasks, isLoading, fetchTasks } = useTaskStore()
+  const { teamMembers, productAreas } = useConfigStore()
+
   useEffect(() => {
-    const validViews: ViewMode[] = ["calendar", "kanban", "table", "timeline"]
-    if (validViews.includes(storedViewModeFromPrefs)) {
-      // If the stored preference is valid and different from the local currentView, update local state.
-      if (currentView !== storedViewModeFromPrefs) {
-        _setCurrentView(storedViewModeFromPrefs)
-      }
-    } else {
-      // If stored view is invalid (e.g., corrupted localStorage),
-      // reset it by calling updateCurrentView, which will also fix the global store.
-      // This case should ideally only run once on initial load if prefs are bad.
-      if (storedViewModeFromPrefs !== "kanban") {
-        // Prevent loop if it's already trying to set to kanban
-        updateCurrentView("kanban")
-      }
-    }
-  }, [storedViewModeFromPrefs, currentView, updateCurrentView]) // `updateCurrentView` is stable due to useCallback
+    fetchTasks()
+  }, [fetchTasks])
 
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
@@ -203,7 +192,7 @@ export function TaskManagementApp() {
 
   const navProps = {
     currentView,
-    setCurrentView: updateCurrentView, // Pass the main update function to UI components
+    setCurrentView: updateCurrentView,
     darkMode: isDarkMode,
     toggleDarkMode,
     handleCreateTask: () => handleCreateTask(),
