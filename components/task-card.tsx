@@ -18,19 +18,18 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { priorityBorderColors } from "@/lib/config" // Assuming these are correctly exported from config
+import { priorityBorderColors } from "@/lib/config"
 import type { Task } from "@/lib/types"
-import { useTaskStore, useConfigStore } from "@/lib/store" // Added useConfigStore
+import { useTaskStore, useConfigStore } from "@/lib/store"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
 interface TaskCardProps {
   task: Task
-  onEditTask: (task: Task) => void // Changed from onEdit: () => void
+  onEditTask: (task: Task) => void
   showDragHandle?: boolean
 }
 
-// Renamed to TaskCardComponent to avoid conflict with the memoized export
 function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCardProps) {
   const { getPriorityColorByName, getTeamMemberColorByName } = useConfigStore()
   const { toggleTaskCompletion } = useTaskStore()
@@ -38,19 +37,23 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
   const priorityColor = getPriorityColorByName(task.priority) || "bg-slate-400"
   const priorityBorder = priorityBorderColors[task.priority] || priorityBorderColors.Default
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "N/A"
     try {
-      return new Date(dateString).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      return new Date(dateString).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
     } catch (e) {
       return "Invalid Date"
     }
   }
 
-  const isOverdue = (dateString: string) => {
+  const isOverdue = (dateString: string | null) => {
+    if (!dateString) return false
     try {
       const dueDate = new Date(dateString)
       const today = new Date()
-      // Set hours to 0 to compare dates only
       dueDate.setHours(0, 0, 0, 0)
       today.setHours(0, 0, 0, 0)
       return dueDate < today
@@ -59,13 +62,16 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
     }
   }
 
-  const subtasks = useTaskStore((state) => state.tasks.filter((t) => t.parentId === task.id))
+  // Fetch all tasks once
+  const allTasks = useTaskStore((state) => state.tasks)
+  // Memoize subtask calculation
+  const subtasks = React.useMemo(() => allTasks.filter((t) => t.parentId === task.id), [allTasks, task.id])
 
   return (
     <div
       className={cn(
         "bg-card rounded-lg border p-3 shadow-sm hover:shadow-md hover:border-primary/40 transition-all group relative",
-        priorityBorder, // Apply priority border color class
+        priorityBorder,
         task.status === "Completed" && "opacity-60 dark:opacity-50",
       )}
     >
@@ -86,7 +92,7 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
         <div className="flex items-center space-x-1 flex-shrink-0">
           <Badge
             className={cn(
-              `text-white text-[10px] px-1.5 py-0.5 font-medium`,
+              "text-white text-[10px] px-1.5 py-0.5 font-medium",
               priorityColor,
               task.status === "Completed" ? "bg-opacity-70" : "",
             )}
@@ -107,7 +113,7 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation()
-                  onEditTask(task) // Call onEditTask with the task
+                  onEditTask(task)
                 }}
               >
                 <Edit className="w-3.5 h-3.5 mr-2" /> Edit Task
@@ -168,18 +174,20 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
       <div className={`flex items-center justify-between text-xs ${showDragHandle ? "ml-2.5" : ""}`}>
         <div className="flex items-center space-x-2">
           <div
-            className={`flex items-center space-x-1 ${isOverdue(task.dueDate) ? "text-destructive font-medium" : "text-muted-foreground"}`}
+            className={`flex items-center space-x-1 ${
+              isOverdue(task.dueDate) ? "text-destructive font-medium" : "text-muted-foreground"
+            }`}
           >
             <Calendar className="w-3 h-3" />
             <span>{formatDate(task.dueDate)}</span>
           </div>
           <div className="flex items-center space-x-1 text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>{task.effort}</span>
+            <span>{task.effort || "N/A"}</span>
           </div>
         </div>
         <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-          {task.productArea}
+          {task.productArea || "N/A"}
         </Badge>
       </div>
 
@@ -189,7 +197,9 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
         task.tags?.length ||
         task.isPrivate) && (
         <div
-          className={`flex items-center space-x-2 text-muted-foreground mt-2 pt-2 border-t border-border/60 ${showDragHandle ? "ml-2.5" : ""}`}
+          className={`flex items-center space-x-2 text-muted-foreground mt-2 pt-2 border-t border-border/60 ${
+            showDragHandle ? "ml-2.5" : ""
+          }`}
         >
           {task.isPrivate && <Lock className="w-3 h-3 text-yellow-500" title="Private Task" />}
           {task.attachments && task.attachments.length > 0 && (
@@ -230,7 +240,4 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
   )
 }
 
-// Memoize TaskCardComponent
-// A custom comparison function might be needed if props are complex and change unnecessarily.
-// For now, we rely on the parent passing stable `onEditTask` and `task` (when not updated).
 export const TaskCard = React.memo(TaskCardComponent)

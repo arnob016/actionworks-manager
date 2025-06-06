@@ -24,28 +24,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const CURRENT_USER = "Zonaid" // This should ideally come from an auth system
 
 export function TaskManagementApp() {
-  // --- START: State Management Fix ---
+  // Use granular selectors for Zustand state
+  const storedViewModeFromPrefs = useUserPreferencesStore((state) => state.preferences.viewMode)
+  const isDarkMode = useUserPreferencesStore((state) => state.preferences.darkMode)
+  const setPreferences = useUserPreferencesStore((state) => state.setPreferences)
+  const preferencesLayout = useUserPreferencesStore((state) => state.preferences.layout) // For layout rendering
 
-  // 1. Get preferences from the Zustand store. This is the single source of truth.
-  const { preferences, setPreferences } = useUserPreferencesStore()
-  const { viewMode: storedViewModeFromPrefs, darkMode: isDarkMode } = preferences
+  const { tasks, isLoading, fetchTasks } = useTaskStore()
+  const { teamMembers, productAreas } = useConfigStore()
 
-  // 2. Derive the `currentView` on every render from the single source of truth.
-  //    This ensures we always use a valid view, even if the stored one is corrupted.
+  useEffect(() => {
+    fetchTasks()
+  }, [fetchTasks])
+
+  // Derive the `currentView` on every render from the single source of truth (storedViewModeFromPrefs).
+  // This ensures we always use a valid view, even if the stored one is corrupted.
   const currentView = useMemo(() => {
     const validViews: ViewMode[] = ["calendar", "kanban", "table", "timeline"]
     return validViews.includes(storedViewModeFromPrefs) ? storedViewModeFromPrefs : "kanban"
   }, [storedViewModeFromPrefs])
 
-  // 3. Use an effect ONLY to correct an invalid value in the store.
-  //    This runs if the derived `currentView` (the safe value) is different from what's in the store.
+  // Use an effect ONLY to correct an invalid value in the store.
+  // This runs if the derived `currentView` (the safe value) is different from what's in the store.
   useEffect(() => {
     if (currentView !== storedViewModeFromPrefs) {
       setPreferences({ viewMode: currentView })
     }
   }, [currentView, storedViewModeFromPrefs, setPreferences])
 
-  // 4. The update function from the UI now only has one job: update the store.
+  // The update function from the UI now only has one job: update the store.
   const updateCurrentView = useCallback(
     (newView: ViewMode) => {
       // Conditional check prevents unnecessary store updates if the view is already correct.
@@ -55,15 +62,6 @@ export function TaskManagementApp() {
     },
     [storedViewModeFromPrefs, setPreferences],
   )
-
-  // --- END: State Management Fix ---
-
-  const { tasks, isLoading, fetchTasks } = useTaskStore()
-  const { teamMembers, productAreas } = useConfigStore()
-
-  useEffect(() => {
-    fetchTasks()
-  }, [fetchTasks])
 
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
@@ -205,14 +203,14 @@ export function TaskManagementApp() {
 
   return (
     <div className={cn("h-screen w-screen overflow-hidden flex bg-background text-foreground")}>
-      {preferences.layout === "sidebar" && <Sidebar {...navProps} />}
+      {preferencesLayout === "sidebar" && <Sidebar {...navProps} />}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {preferences.layout === "navbar" && <TopNavbar {...navProps} />}
+        {preferencesLayout === "navbar" && <TopNavbar {...navProps} />}
         <div
           className={cn(
             "bg-card/80 border-b border-border flex-shrink-0 backdrop-blur-sm",
-            preferences.layout === "sidebar" && "sm:block",
-            preferences.layout === "navbar" && "block",
+            preferencesLayout === "sidebar" && "sm:block",
+            preferencesLayout === "navbar" && "block",
           )}
         >
           <div className="max-w-full mx-auto px-3 sm:px-4 lg:px-6 py-2.5">
@@ -231,7 +229,7 @@ export function TaskManagementApp() {
               <div
                 className={cn(
                   "flex flex-wrap items-center gap-2 self-start md:self-center",
-                  preferences.layout === "sidebar" && "hidden sm:flex",
+                  preferencesLayout === "sidebar" && "hidden sm:flex",
                 )}
               >
                 {currentView === "timeline" && (
