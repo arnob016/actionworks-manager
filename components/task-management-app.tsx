@@ -38,11 +38,17 @@ export function TaskManagementApp() {
     return validViews.includes(storedViewModeFromPrefs) ? storedViewModeFromPrefs : "kanban"
   })
 
+  // This callback is intended to be called by UI elements to change the view.
+  // It updates both local state and global preferences.
   const updateCurrentView = useCallback(
     (newViewCandidate: ViewMode) => {
       const validViews: ViewMode[] = ["calendar", "kanban", "table", "timeline"]
       const newView = validViews.includes(newViewCandidate) ? newViewCandidate : "kanban"
+
+      // Update local state first. React won't re-render if the value is the same.
       _setCurrentView(newView)
+
+      // Only update global preferences if they are different.
       if (storedViewModeFromPrefs !== newView) {
         setPreferences({ viewMode: newView })
       }
@@ -50,16 +56,25 @@ export function TaskManagementApp() {
     [storedViewModeFromPrefs, setPreferences],
   )
 
+  // This useEffect synchronizes the local `currentView` if the `storedViewModeFromPrefs` (global) changes.
+  // For example, if another tab changes the preference, or if the initial load had an invalid preference.
   useEffect(() => {
     const validViews: ViewMode[] = ["calendar", "kanban", "table", "timeline"]
     if (validViews.includes(storedViewModeFromPrefs)) {
+      // If the stored preference is valid and different from the local currentView, update local state.
       if (currentView !== storedViewModeFromPrefs) {
         _setCurrentView(storedViewModeFromPrefs)
       }
     } else {
-      updateCurrentView("kanban")
+      // If stored view is invalid (e.g., corrupted localStorage),
+      // reset it by calling updateCurrentView, which will also fix the global store.
+      // This case should ideally only run once on initial load if prefs are bad.
+      if (storedViewModeFromPrefs !== "kanban") {
+        // Prevent loop if it's already trying to set to kanban
+        updateCurrentView("kanban")
+      }
     }
-  }, [storedViewModeFromPrefs, currentView, updateCurrentView])
+  }, [storedViewModeFromPrefs, currentView, updateCurrentView]) // `updateCurrentView` is stable due to useCallback
 
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
@@ -188,7 +203,7 @@ export function TaskManagementApp() {
 
   const navProps = {
     currentView,
-    setCurrentView: updateCurrentView,
+    setCurrentView: updateCurrentView, // Pass the main update function to UI components
     darkMode: isDarkMode,
     toggleDarkMode,
     handleCreateTask: () => handleCreateTask(),
