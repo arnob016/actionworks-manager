@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* Light mode background - white */
+    --foreground: 224 71.4% 4.1%; /* Light mode text - very dark blue (slate-950) */
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    --primary: 220 83.3% 53.1%; /* Primary actions - blue-600 */
+    --primary-foreground: 210 20% 98%; /* Text on primary - nearly white (slate-50) */
+
+    --secondary: 220 14.3% 95.9%; /* Secondary elements background - slate-100 */
+    --secondary-foreground: 220 13% 46.1%; /* Text on secondary - slate-600 */
+
+    --muted: 220 14.3% 95.9%; /* Muted backgrounds - slate-100 */
+    --muted-foreground: 220 8.9% 46.1%; /* Muted text - slate-500 */
+
+    --accent: 220 14.3% 95.9%; /* Accent backgrounds - slate-100 */
+    --accent-foreground: 224 71.4% 4.1%; /* Accent text - slate-900 */
+
+    --destructive: 0 72.2% 50.6%; /* Destructive actions - red-600 */
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 13% 91%; /* Borders - slate-200 */
+    --input: 220 13% 91%; /* Input borders - slate-200 */
+    --ring: 220 83.3% 53.1%; /* Focus rings - blue-600 */
+
+    --radius: 0.5rem; /* Updated from 0.75rem for a slightly sharper look */
+    --font-size: 14px;
+    --line-height: 1.5;
+  }
+
+  .dark {
+    --background: 224 71.4% 4.1%; /* Dark mode background - slate-950 */
+    --foreground: 210 20% 98%; /* Dark mode text - slate-50 */
+
+    --card: 224 71.4% 4.1%; /* Card background - slate-950 */
+    --card-foreground: 210 20% 98%; /* Card text - slate-50 */
+
+    --popover: 222 84% 4.9%; /* Popover background - slightly off-black */
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%; /* Primary actions - blue-500 */
+    --primary-foreground: 210 20% 98%; /* Text on primary - slate-50 */
+
+    --secondary: 215 27.9% 16.9%; /* Secondary elements background - slate-800 */
+    --secondary-foreground: 210 20% 98%; /* Text on secondary - slate-50 */
+
+    --muted: 215 27.9% 16.9%; /* Muted backgrounds - slate-800 */
+    --muted-foreground: 217.9 10.6% 64.9%; /* Muted text - slate-400 */
+
+    --accent: 215 27.9% 16.9%; /* Accent backgrounds - slate-800 */
+    --accent-foreground: 210 20% 98%; /* Accent text - slate-50 */
+
+    --destructive: 0 62.8% 30.6%; /* Destructive actions - red-700 */
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 215 27.9% 16.9%; /* Borders - slate-800 */
+    --input: 215 27.9% 16.9%; /* Input borders - slate-800 */
+    --ring: 217.2 91.2% 59.8%; /* Focus rings - blue-500 */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: var(--font-size);
+    line-height: var(--line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Custom scrollbar for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer utilities {
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .h-fill-available {
+    height: -webkit-fill-available;
+    height: -moz-available;
+    height: stretch;
+  }
+}
