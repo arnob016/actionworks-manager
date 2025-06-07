@@ -9,6 +9,7 @@ import {
   Users,
   Flag,
   Zap,
+  BarChart3,
   Building,
   Link2,
   Tag,
@@ -25,6 +26,7 @@ import {
   UploadCloud,
   FileText,
   Check,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -100,7 +102,6 @@ const TagInput: React.FC<{
 }
 
 export function TaskModal({
-  // Named export
   isOpen,
   onClose,
   task,
@@ -134,7 +135,7 @@ export function TaskModal({
 
   const { preferences } = useUserPreferencesStore()
 
-  const CURRENT_USER = "Zonaid"
+  const CURRENT_USER = "Zonaid" // This can be a fallback or default for reporter
 
   const getInitialFormData = (): TaskFormData => {
     const today = new Date().toISOString().split("T")[0]
@@ -149,7 +150,11 @@ export function TaskModal({
       effort: defaultInitialValues?.effort || configEffortSizes[0] || "M",
       productArea: defaultInitialValues?.productArea || configProductAreas[0] || "",
       dependsOn: defaultInitialValues?.dependsOn || [],
-      reporter: defaultInitialValues?.reporter || teamMembers[0]?.name || CURRENT_USER,
+      reporter:
+        defaultInitialValues?.reporter ||
+        teamMembers.find((tm) => tm.name === CURRENT_USER)?.name ||
+        teamMembers[0]?.name ||
+        CURRENT_USER,
       tags: defaultInitialValues?.tags || [],
       isPrivate: defaultInitialValues?.isPrivate || false,
       parentId: defaultInitialValues?.parentId,
@@ -163,6 +168,11 @@ export function TaskModal({
   const [activeTab, setActiveTab] = useState("discussion")
   const [filesToUpload, setFilesToUpload] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedCommentAuthor, setSelectedCommentAuthor] = useState<string>(
+    teamMembers.find((tm) => tm.name === CURRENT_USER)?.name || teamMembers[0]?.name || CURRENT_USER,
+  )
 
   useEffect(() => {
     if (isOpen) {
@@ -185,9 +195,16 @@ export function TaskModal({
         })
       } else {
         setFormData(getInitialFormData())
+        setTimeout(() => titleInputRef.current?.focus(), 50)
       }
+      // Set default comment author
+      const defaultAuthor =
+        teamMembers.find((tm) => tm.name === CURRENT_USER)?.name || teamMembers[0]?.name || CURRENT_USER
+      setSelectedCommentAuthor(defaultAuthor)
+
       setActiveTab("discussion")
       setFilesToUpload([])
+      setIsSubmitting(false)
     }
   }, [
     task,
@@ -198,13 +215,15 @@ export function TaskModal({
     configPriorities,
     configProductAreas,
     configEffortSizes,
-    teamMembers,
+    teamMembers, // Added teamMembers to dependency array
   ])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    if (e) e.preventDefault()
+
     if (!formData.title.trim()) {
       toast.error("Task title cannot be empty.")
+      titleInputRef.current?.focus()
       return
     }
     if (formData.startDate && formData.dueDate && new Date(formData.startDate) > new Date(formData.dueDate)) {
@@ -212,24 +231,54 @@ export function TaskModal({
       return
     }
 
-    const taskDataToSave = { ...formData }
+    setIsSubmitting(true)
+    try {
+      const taskDataToSave = { ...formData }
 
-    if (task) {
-      await updateTask(task.id, taskDataToSave)
-      filesToUpload.forEach((file) => {
-        storeAddAttachment(task.id, {
-          fileName: file.name,
-          fileType: file.type,
-          url: URL.createObjectURL(file),
+      if (task) {
+        await updateTask(task.id, taskDataToSave)
+        filesToUpload.forEach((file) => {
+          storeAddAttachment(task.id, {
+            fileName: file.name,
+            fileType: file.type,
+            url: URL.createObjectURL(file),
+          })
         })
-      })
-    } else {
-      await addTask(taskDataToSave)
-      if (filesToUpload.length > 0) {
-        toast.info(`${filesToUpload.length} file(s) would be uploaded. (Actual upload not implemented)`)
+      } else {
+        const newTaskResult = await addTask(taskDataToSave) // addTask should return the created task or its ID
+        if (newTaskResult && filesToUpload.length > 0) {
+          // Assuming newTaskResult has an ID, if not, the store's addTask needs to be adapted
+          // For now, we'll just show a generic message as file upload for new tasks is tricky without an ID
+          toast.info(
+            `${filesToUpload.length} file(s) would be uploaded. (Actual upload not implemented for new tasks before save)`,
+          )
+        } else if (!newTaskResult && filesToUpload.length > 0) {
+          toast.warn("Task created, but files could not be attached immediately. Please edit the task to add files.")
+        }
+      }
+      onClose()
+    } catch (error) {
+      toast.error("An error occurred while saving the task. Please try again.")
+      console.error("Error submitting task:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDescriptionKeyDown = async (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault()
+      await handleSubmit(event)
+    }
+  }
+
+  const handleCommentKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      if (newComment.trim() && task) {
+        handlePostComment()
       }
     }
-    onClose()
   }
 
   const handleDeleteConfirm = async () => {
@@ -241,14 +290,16 @@ export function TaskModal({
   }
 
   const handlePostComment = () => {
-    if (task && newComment.trim()) {
+    if (task && newComment.trim() && selectedCommentAuthor) {
       addCommentToTask(task.id, {
-        author: CURRENT_USER,
+        author: selectedCommentAuthor,
         content: newComment.trim(),
         parentId: replyingTo || undefined,
       })
       setNewComment("")
       setReplyingTo(null)
+    } else if (!selectedCommentAuthor) {
+      toast.error("Please select a commenter.")
     }
   }
 
@@ -345,11 +396,12 @@ export function TaskModal({
 
   const renderComment = (comment: Comment, allComments: Comment[], level = 0) => {
     const replies = allComments.filter((c) => c.parentId === comment.id)
+    const authorColor = getTeamMemberColorByName(comment.author) || "bg-gray-400"
     return (
       <div key={comment.id} className={cn("py-2.5", level > 0 && "pl-4 border-l border-border ml-4")}>
         <div className="flex items-start space-x-3">
           <Avatar className="w-8 h-8">
-            <AvatarFallback className={`${getTeamMemberColorByName(comment.author)} text-white text-xs`}>
+            <AvatarFallback className={`${authorColor} text-white text-xs`}>
               {comment.author
                 .split(" ")
                 .map((n) => n[0])
@@ -413,6 +465,7 @@ export function TaskModal({
             <form id="task-form" onSubmit={handleSubmit} className="space-y-5">
               <Input
                 id="title"
+                ref={titleInputRef}
                 value={formData.title}
                 onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
                 required
@@ -425,6 +478,7 @@ export function TaskModal({
                 onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                 rows={5}
                 placeholder="Add a description..."
+                onKeyDown={handleDescriptionKeyDown}
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -433,6 +487,7 @@ export function TaskModal({
                   { label: "Status", icon: Flag, field: "status", options: configStatuses.map((s) => s.name) },
                   { label: "Priority", icon: Zap, field: "priority", options: configPriorities.map((p) => p.name) },
                   { label: "Product Area", icon: Building, field: "productArea", options: configProductAreas },
+                  { label: "Effort", icon: BarChart3, field: "effort", options: configEffortSizes },
                 ].map((item) => (
                   <div key={item.field} className="space-y-1.5">
                     <Label className="flex items-center text-muted-foreground">
@@ -632,6 +687,47 @@ export function TaskModal({
                   )}
                 </ScrollArea>
                 <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label htmlFor="comment-author" className="text-xs text-muted-foreground whitespace-nowrap">
+                      Comment as:
+                    </Label>
+                    <Select value={selectedCommentAuthor} onValueChange={setSelectedCommentAuthor}>
+                      <SelectTrigger id="comment-author" className="h-8 text-xs flex-grow min-w-[150px]">
+                        <SelectValue>
+                          <div className="flex items-center">
+                            <Avatar className="w-5 h-5 mr-2">
+                              <AvatarFallback
+                                className={`${getTeamMemberColorByName(selectedCommentAuthor)} text-white text-[9px]`}
+                              >
+                                {selectedCommentAuthor
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")}
+                              </AvatarFallback>
+                            </Avatar>
+                            {selectedCommentAuthor}
+                          </div>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teamMembers.map((member) => (
+                          <SelectItem key={member.name} value={member.name} className="text-xs">
+                            <div className="flex items-center">
+                              <Avatar className="w-5 h-5 mr-2">
+                                <AvatarFallback className={`${member.color} text-white text-[9px]`}>
+                                  {member.name
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              {member.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {replyingTo && (
                     <div className="text-xs text-muted-foreground mb-1.5 flex justify-between items-center">
                       <span>
@@ -654,12 +750,13 @@ export function TaskModal({
                       placeholder={replyingTo ? "Write your reply..." : "Add a comment..."}
                       rows={2}
                       className="pr-10"
+                      onKeyDown={handleCommentKeyDown}
                     />
                     <Button
                       size="icon"
                       className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-primary hover:bg-primary/90"
                       onClick={handlePostComment}
-                      disabled={!newComment.trim() || !task}
+                      disabled={!newComment.trim() || !task || !selectedCommentAuthor}
                     >
                       <Send className="w-3.5 h-3.5" />
                     </Button>
@@ -841,8 +938,22 @@ export function TaskModal({
               Cancel
             </Button>
           </DialogClose>
-          <Button type="submit" form="task-form" className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            {task ? "Save Changes" : "Create Task"}
+          <Button
+            type="submit"
+            form="task-form"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {task ? "Saving..." : "Creating..."}
+              </>
+            ) : task ? (
+              "Save Changes"
+            ) : (
+              "Create Task"
+            )}
           </Button>
         </DialogFooter>
 
