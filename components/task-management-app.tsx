@@ -163,7 +163,7 @@ export function TaskManagementApp() {
 
   const navProps = {
     currentView: storedViewModeFromPrefs,
-    setCurrentView: setPreferences,
+    setCurrentView: (newViewMode: ViewMode) => setPreferences({ viewMode: newViewMode }),
     darkMode: isDarkMode,
     toggleDarkMode,
     handleCreateTask: () => handleCreateTask(),

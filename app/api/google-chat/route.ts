@@ -74,7 +74,7 @@ const mapSupabaseTaskToTask = (supabaseTask: any): Task => {
 function buildSystemPrompt(currentUser = "User") {
   const today = new Date().toLocaleDateString("en-CA")
   const availableStatuses = staticConfig.statuses.map((s) => s.name).join(", ")
-  const availablePriorities = staticConfig.priorities.map((p) => p.name).join(", ")
+  const availablePriorities = Object.keys(staticConfig.priorities).join(", ")
   const availableAssignees = staticConfig.teamMembers.map((m) => m.name).join(", ")
   const availableProductAreas = staticConfig.productAreas.join(", ")
 
