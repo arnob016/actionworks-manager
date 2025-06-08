@@ -17,7 +17,7 @@ export interface Task {
   tags?: string[]
   attachments?: Attachment[] // Will remain client-side for now
   comments?: Comment[] // Will remain client-side for now
-  isPrivate?: boolean
+  // isPrivate?: boolean // Removed
   createdAt?: string // Added for Supabase
   updatedAt?: string // Added for Supabase
 }
@@ -38,7 +38,7 @@ export interface TaskFormData {
   reporter: string | null
   parentId?: string | null
   tags?: string[]
-  isPrivate?: boolean
+  // isPrivate?: boolean // Removed
 }
 
 export type ViewMode = "calendar" | "kanban" | "table" | "timeline"
@@ -46,6 +46,7 @@ export type ViewMode = "calendar" | "kanban" | "table" | "timeline"
 export interface StatusConfig {
   name: string
   wipLimit?: number | null
+  color?: string // Added for consistency if needed
 }
 
 export interface ConfigItem {

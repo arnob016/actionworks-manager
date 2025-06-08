@@ -44,6 +44,7 @@ const openSans = Open_Sans({
 export const metadata: Metadata = {
   title: "Portal ART3MIS",
   description: "Autonomous Response & Task Efficiency Management Intelligence System",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({

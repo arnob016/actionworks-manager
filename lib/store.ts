@@ -14,13 +14,10 @@ import type {
 } from "./types"
 import { staticConfig as initialStaticConfig } from "./config"
 import { toast } from "sonner"
-// Corrected import:
 import { createSupabaseClient } from "./supabase/client"
 
-// Corrected usage:
 const supabase = createSupabaseClient()
 
-// Helper to map Supabase task (snake_case) to our Task type (camelCase)
 const mapSupabaseTaskToTask = (supabaseTask: any): Task => {
   return {
     id: supabaseTask.id,
@@ -38,15 +35,13 @@ const mapSupabaseTaskToTask = (supabaseTask: any): Task => {
     reporter: supabaseTask.reporter,
     parentId: supabaseTask.parent_id,
     tags: supabaseTask.tags || [],
-    isPrivate: supabaseTask.is_private || false,
-    attachments: [], // attachments and comments are not in DB yet
+    attachments: [],
     comments: [],
     createdAt: supabaseTask.created_at,
     updatedAt: supabaseTask.updated_at,
   }
 }
 
-// Helper to map our Task/TaskFormData to Supabase task (snake_case)
 const mapTaskToSupabaseTask = (taskData: Partial<Task> | Partial<TaskFormData>): any => {
   const supabaseData: any = {}
   if (taskData.title !== undefined) supabaseData.title = taskData.title
@@ -63,7 +58,6 @@ const mapTaskToSupabaseTask = (taskData: Partial<Task> | Partial<TaskFormData>):
   if (taskData.reporter !== undefined) supabaseData.reporter = taskData.reporter
   if (taskData.parentId !== undefined) supabaseData.parent_id = taskData.parentId
   if (taskData.tags !== undefined) supabaseData.tags = taskData.tags
-  if (taskData.isPrivate !== undefined) supabaseData.is_private = taskData.isPrivate
   return supabaseData
 }
 
@@ -134,7 +128,7 @@ interface TaskStore {
   tasks: Task[]
   isLoading: boolean
   fetchTasks: () => Promise<void>
-  addTask: (taskData: Omit<TaskFormData, "id" | "order">) => Promise<void>
+  addTask: (taskData: Omit<TaskFormData, "id" | "order">) => Promise<Task | undefined>
   updateTask: (id: string, updates: Partial<TaskFormData>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   deleteTasks: (ids: string[]) => Promise<void>
@@ -149,6 +143,7 @@ interface TaskStore {
   removeTagFromTask: (taskId: string, tag: string) => Promise<void>
   getSubtasks: (parentId: string) => Task[]
   reorderTask: (draggedId: string, targetId: string) => Promise<void>
+  getTaskById: (id: string) => Task | undefined
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -184,13 +179,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
     if (error) {
       toast.error("Failed to add task: " + error.message)
-      return
+      return undefined
     }
     if (data) {
       const newTask = mapSupabaseTaskToTask(data)
       set((state) => ({ tasks: [...state.tasks, newTask].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) }))
       toast.success(`Task "${newTask.title}" created successfully!`)
+      return newTask
     }
+    return undefined
   },
 
   updateTask: async (id, updates) => {
@@ -337,10 +334,14 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     if (!task) return
 
     const config = useConfigStore.getState()
-    const firstStatus = config.statuses[0]?.name || "New"
-    const completedStatus = config.statuses.find((s) => s.name.toLowerCase() === "completed")?.name || "Completed"
+    const completedStatusName =
+      config.statuses.find((s) => s.name.toLowerCase() === "completed")?.name ||
+      config.statuses[config.statuses.length - 1]?.name ||
+      "Completed"
+    const defaultIncompleteStatus =
+      config.statuses.find((s) => s.name.toLowerCase() === "to do")?.name || config.statuses[0]?.name || "To Do"
 
-    const newStatus = task.status === completedStatus ? firstStatus : completedStatus
+    const newStatus = task.status === completedStatusName ? defaultIncompleteStatus : completedStatusName
 
     const { error } = await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId)
     if (error) {
@@ -350,7 +351,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
     }))
-    toast.info(`Task "${task.title}" marked as ${newStatus === completedStatus ? "completed" : "incomplete"}.`)
+    toast.info(`Task "${task.title}" marked as ${newStatus === completedStatusName ? "completed" : "incomplete"}.`)
   },
 
   addTagToTask: async (taskId, tag) => {
@@ -381,7 +382,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   },
 
   addCommentToTask: (taskId, commentData) => {
-    toast.info("Adding comments to Supabase not yet implemented.")
+    toast.info("Adding comments is a client-side mock for now.")
     const newComment: Comment = { ...commentData, id: `cmt-${Date.now()}`, createdAt: new Date().toISOString() }
     set((state) => ({
       tasks: state.tasks.map((task) =>
@@ -390,7 +391,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     }))
   },
   addAttachmentToTask: (taskId, attachmentData) => {
-    toast.info("Adding attachments to Supabase not yet implemented.")
+    toast.info("Adding attachments is a client-side mock for now.")
     const newAttachment: Attachment = {
       ...attachmentData,
       id: `att-${Date.now()}`,
@@ -404,6 +405,32 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   },
   getSubtasks: (parentId: string) => {
     return get().tasks.filter((task) => task.parentId === parentId)
+  },
+  reorderTask: async (draggedId, targetId) => {
+    const tasks = [...get().tasks]
+    const draggedIndex = tasks.findIndex((t) => t.id === draggedId)
+    const targetIndex = tasks.findIndex((t) => t.id === targetId)
+
+    if (draggedIndex === -1 || targetIndex === -1) return
+
+    const [draggedItem] = tasks.splice(draggedIndex, 1)
+    tasks.splice(targetIndex, 0, draggedItem)
+
+    const updates = tasks.map((task, index) => supabase.from("tasks").update({ order: index }).eq("id", task.id))
+
+    const results = await Promise.all(updates)
+    const anyError = results.some((result) => result.error)
+
+    if (anyError) {
+      toast.error("Failed to reorder tasks. Some updates failed.")
+      await get().fetchTasks()
+    } else {
+      set({ tasks: tasks.map((t, i) => ({ ...t, order: i })) })
+      toast.success("Task order updated.")
+    }
+  },
+  getTaskById: (id) => {
+    return get().tasks.find((task) => task.id === id)
   },
 }))
 

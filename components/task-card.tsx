@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react" // Import React for React.memo
+import React from "react"
 import {
   Calendar,
   Clock,
@@ -13,7 +13,7 @@ import {
   Paperclip,
   MessageSquare,
   GitFork,
-  Lock,
+  ExternalLink,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -23,6 +23,7 @@ import type { Task } from "@/lib/types"
 import { useTaskStore, useConfigStore } from "@/lib/store"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 interface TaskCardProps {
   task: Task
@@ -62,9 +63,7 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
     }
   }
 
-  // Fetch all tasks once
   const allTasks = useTaskStore((state) => state.tasks)
-  // Memoize subtask calculation
   const subtasks = React.useMemo(() => allTasks.filter((t) => t.parentId === task.id), [allTasks, task.id])
 
   return (
@@ -117,6 +116,11 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
                 }}
               >
                 <Edit className="w-3.5 h-3.5 mr-2" /> Edit Task
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/task/${task.id}`} className="w-full">
+                  <ExternalLink className="w-3.5 h-3.5 mr-2" /> View Full Page
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
@@ -191,17 +195,13 @@ function TaskCardComponent({ task, onEditTask, showDragHandle = false }: TaskCar
         </Badge>
       </div>
 
-      {(task.attachments?.length ||
-        task.comments?.length ||
-        subtasks.length > 0 ||
-        task.tags?.length ||
-        task.isPrivate) && (
+      {(task.attachments?.length || task.comments?.length || subtasks.length > 0 || task.tags?.length) && ( // Removed task.isPrivate
         <div
           className={`flex items-center space-x-2 text-muted-foreground mt-2 pt-2 border-t border-border/60 ${
             showDragHandle ? "ml-2.5" : ""
           }`}
         >
-          {task.isPrivate && <Lock className="w-3 h-3 text-yellow-500" title="Private Task" />}
+          {/* Removed Lock icon for isPrivate */}
           {task.attachments && task.attachments.length > 0 && (
             <div className="flex items-center text-xs" title={`${task.attachments.length} attachments`}>
               <Paperclip className="w-3 h-3 mr-0.5" />

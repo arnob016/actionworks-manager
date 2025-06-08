@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 // Add AiChatWidget import
 import { AiChatWidget } from "./ai-chat-widget"
+import { toast } from "sonner"
 
 const CURRENT_USER = "Zonaid" // This should ideally come from an auth system
 
@@ -34,36 +35,6 @@ export function TaskManagementApp() {
 
   const { tasks, isLoading, fetchTasks } = useTaskStore()
   const { teamMembers, productAreas } = useConfigStore()
-
-  useEffect(() => {
-    fetchTasks()
-  }, [fetchTasks])
-
-  // Derive the `currentView` on every render from the single source of truth (storedViewModeFromPrefs).
-  // This ensures we always use a valid view, even if the stored one is corrupted.
-  const currentView = useMemo(() => {
-    const validViews: ViewMode[] = ["calendar", "kanban", "table", "timeline"]
-    return validViews.includes(storedViewModeFromPrefs) ? storedViewModeFromPrefs : "kanban"
-  }, [storedViewModeFromPrefs])
-
-  // Use an effect ONLY to correct an invalid value in the store.
-  // This runs if the derived `currentView` (the safe value) is different from what's in the store.
-  useEffect(() => {
-    if (currentView !== storedViewModeFromPrefs) {
-      setPreferences({ viewMode: currentView })
-    }
-  }, [currentView, storedViewModeFromPrefs, setPreferences])
-
-  // The update function from the UI now only has one job: update the store.
-  const updateCurrentView = useCallback(
-    (newView: ViewMode) => {
-      // Conditional check prevents unnecessary store updates if the view is already correct.
-      if (storedViewModeFromPrefs !== newView) {
-        setPreferences({ viewMode: newView })
-      }
-    },
-    [storedViewModeFromPrefs, setPreferences],
-  )
 
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
@@ -126,13 +97,13 @@ export function TaskManagementApp() {
       setEditingTask(null)
       const combinedDefaults: Partial<TaskFormData> = { ...defaultValues }
       if (parentId) combinedDefaults.parentId = parentId
-      if (currentView === "timeline" && selectedTimelineAssignee && !combinedDefaults.assignees) {
+      if (storedViewModeFromPrefs === "timeline" && selectedTimelineAssignee && !combinedDefaults.assignees) {
         combinedDefaults.assignees = [selectedTimelineAssignee]
       }
       setFormDataForModalCreation(combinedDefaults)
       setShowTaskModal(true)
     },
-    [currentView, selectedTimelineAssignee],
+    [storedViewModeFromPrefs, selectedTimelineAssignee],
   )
 
   const handleEditTask = useCallback((task: Task) => {
@@ -185,14 +156,14 @@ export function TaskManagementApp() {
       />
     ),
   }
-  const CurrentViewComponent = viewComponents[currentView]
+  const CurrentViewComponent = viewComponents[storedViewModeFromPrefs]
 
   const activeSubFilterCount = [filters.status, filters.priority, filters.assignee].filter(Boolean).length
   const totalActiveFilterCount = activeSubFilterCount + (currentProductAreaFilter ? 1 : 0)
 
   const navProps = {
-    currentView,
-    setCurrentView: updateCurrentView,
+    currentView: storedViewModeFromPrefs,
+    setCurrentView: setPreferences,
     darkMode: isDarkMode,
     toggleDarkMode,
     handleCreateTask: () => handleCreateTask(),
@@ -202,6 +173,28 @@ export function TaskManagementApp() {
     onToggleFilters: () => setShowFilters((prev) => !prev),
     activeFilterCount: totalActiveFilterCount,
   }
+
+  useEffect(() => {
+    fetchTasks().then(() => {
+      // Check for editTask query parameter after tasks are loaded
+      const queryParams = new URLSearchParams(window.location.search)
+      const taskIdToEdit = queryParams.get("editTask")
+      if (taskIdToEdit) {
+        const taskToEdit = useTaskStore.getState().getTaskById(taskIdToEdit) // Get task from store
+        if (taskToEdit) {
+          handleEditTask(taskToEdit)
+          // Optional: Remove the query parameter from URL after processing
+          const newUrl = window.location.pathname
+          window.history.replaceState({}, "", newUrl)
+        } else {
+          toast.error(`Task with ID ${taskIdToEdit} not found for editing.`)
+          // Optional: Remove the query parameter from URL after processing
+          const newUrl = window.location.pathname
+          window.history.replaceState({}, "", newUrl)
+        }
+      }
+    })
+  }, [fetchTasks])
 
   return (
     <div className={cn("h-screen w-screen overflow-hidden flex bg-background text-foreground")}>
@@ -234,7 +227,7 @@ export function TaskManagementApp() {
                   preferencesLayout === "sidebar" && "hidden sm:flex",
                 )}
               >
-                {currentView === "timeline" && (
+                {storedViewModeFromPrefs === "timeline" && (
                   <>
                     <Select
                       value={selectedTimelineAssignee || "all"}
@@ -314,7 +307,7 @@ export function TaskManagementApp() {
               <CurrentViewComponent
                 tasks={filteredTasks}
                 onEditTask={handleEditTask}
-                {...(currentView === "kanban" && { onCreateTaskInStatus: handleCreateTaskInStatus })}
+                {...(storedViewModeFromPrefs === "kanban" && { onCreateTaskInStatus: handleCreateTaskInStatus })}
               />
             )
           )}

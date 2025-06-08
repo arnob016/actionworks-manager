@@ -16,8 +16,6 @@ import {
   Paperclip,
   MessageSquare,
   GitFork,
-  Lock,
-  Unlock,
   Trash2,
   Plus,
   Send,
@@ -38,7 +36,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
+// import { Switch } from "@/components/ui/switch" // Removed
 import { useTaskStore, useConfigStore, useUserPreferencesStore } from "@/lib/store"
 import type { Task, TaskFormData, Comment } from "@/lib/types"
 import { toast } from "sonner"
@@ -135,7 +133,7 @@ export function TaskModal({
 
   const { preferences } = useUserPreferencesStore()
 
-  const CURRENT_USER = "Zonaid" // This can be a fallback or default for reporter
+  const CURRENT_USER = "Zonaid"
 
   const getInitialFormData = (): TaskFormData => {
     const today = new Date().toISOString().split("T")[0]
@@ -156,7 +154,7 @@ export function TaskModal({
         teamMembers[0]?.name ||
         CURRENT_USER,
       tags: defaultInitialValues?.tags || [],
-      isPrivate: defaultInitialValues?.isPrivate || false,
+      // isPrivate: defaultInitialValues?.isPrivate || false, // Removed
       parentId: defaultInitialValues?.parentId,
     }
   }
@@ -190,14 +188,13 @@ export function TaskModal({
           dependsOn: task.dependsOn || [],
           reporter: task.reporter || CURRENT_USER,
           tags: task.tags || [],
-          isPrivate: task.isPrivate || false,
+          // isPrivate: task.isPrivate || false, // Removed
           parentId: task.parentId,
         })
       } else {
         setFormData(getInitialFormData())
         setTimeout(() => titleInputRef.current?.focus(), 50)
       }
-      // Set default comment author
       const defaultAuthor =
         teamMembers.find((tm) => tm.name === CURRENT_USER)?.name || teamMembers[0]?.name || CURRENT_USER
       setSelectedCommentAuthor(defaultAuthor)
@@ -215,7 +212,7 @@ export function TaskModal({
     configPriorities,
     configProductAreas,
     configEffortSizes,
-    teamMembers, // Added teamMembers to dependency array
+    teamMembers,
   ])
 
   const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
@@ -241,17 +238,20 @@ export function TaskModal({
           storeAddAttachment(task.id, {
             fileName: file.name,
             fileType: file.type,
-            url: URL.createObjectURL(file),
+            url: URL.createObjectURL(file), // Note: This URL is temporary
           })
         })
       } else {
-        const newTaskResult = await addTask(taskDataToSave) // addTask should return the created task or its ID
+        const newTaskResult = await addTask(taskDataToSave)
         if (newTaskResult && filesToUpload.length > 0) {
-          // Assuming newTaskResult has an ID, if not, the store's addTask needs to be adapted
-          // For now, we'll just show a generic message as file upload for new tasks is tricky without an ID
-          toast.info(
-            `${filesToUpload.length} file(s) would be uploaded. (Actual upload not implemented for new tasks before save)`,
-          )
+          filesToUpload.forEach((file) => {
+            storeAddAttachment(newTaskResult.id, {
+              // Use newTaskResult.id
+              fileName: file.name,
+              fileType: file.type,
+              url: URL.createObjectURL(file),
+            })
+          })
         } else if (!newTaskResult && filesToUpload.length > 0) {
           toast.warn("Task created, but files could not be attached immediately. Please edit the task to add files.")
         }
@@ -634,22 +634,7 @@ export function TaskModal({
                   onRemoveTag={handleRemoveTagWrapper}
                 />
               </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <Label htmlFor="is-private" className="flex items-center text-muted-foreground text-xs">
-                  {formData.isPrivate ? (
-                    <Lock className="w-3.5 h-3.5 mr-1.5" />
-                  ) : (
-                    <Unlock className="w-3.5 h-3.5 mr-1.5" />
-                  )}
-                  Private Task (only visible to assignees & reporter)
-                </Label>
-                <Switch
-                  id="is-private"
-                  checked={formData.isPrivate}
-                  onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isPrivate: checked }))}
-                />
-              </div>
+              {/* Removed Private Task Switch */}
             </form>
           </ScrollArea>
 
@@ -799,7 +784,7 @@ export function TaskModal({
                   size="sm"
                   className="w-full text-xs mb-2 h-8"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={!task}
+                  disabled={!task} // Only allow adding attachments to existing tasks
                 >
                   <UploadCloud className="w-3.5 h-3.5 mr-1" /> Add Files
                 </Button>

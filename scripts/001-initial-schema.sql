@@ -1,2 +1,0 @@
--- No initial schema exists, and no changes are needed.
--- Therefore, an empty file is sufficient.

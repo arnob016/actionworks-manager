@@ -2,17 +2,7 @@
 
 import type React from "react"
 import { useState, useMemo, useRef, useEffect } from "react"
-import {
-  ChevronLeft,
-  ChevronRight,
-  GripVertical,
-  Plus,
-  Paperclip,
-  MessageSquare,
-  Lock,
-  ListTree,
-  Inbox,
-} from "lucide-react" // Added Inbox
+import { ChevronLeft, ChevronRight, GripVertical, Plus, Paperclip, MessageSquare, ListTree, Inbox } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTaskStore } from "@/lib/store"
@@ -61,14 +51,13 @@ interface PositionedTask extends Task {
 }
 
 interface CalendarViewProps {
-  tasks: Task[] // These are already filtered tasks from TaskManagementApp
+  tasks: Task[]
   onEditTask: (task: Task) => void
   onCreateTaskForDate: (date: Date) => void
 }
 
 export function CalendarView({ tasks: tasksFromProps, onEditTask, onCreateTaskForDate }: CalendarViewProps) {
   const { updateTask, getSubtasks } = useTaskStore()
-  // tasksFromProps are already filtered by TaskManagementApp
   const tasksToDisplayInCalendar = tasksFromProps
 
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -190,7 +179,6 @@ export function CalendarView({ tasks: tasksFromProps, onEditTask, onCreateTaskFo
       if (startDayIndex > endDayIndex) continue
 
       let assignedRow = 0
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         let conflict = false
         for (let i = startDayIndex; i <= endDayIndex; i++)
@@ -384,9 +372,7 @@ export function CalendarView({ tasks: tasksFromProps, onEditTask, onCreateTaskFo
               )}
               <span className="truncate flex-grow mr-1">{taskToRender.title}</span>
               <div className="flex items-center space-x-1.5 flex-shrink-0 ml-auto opacity-70 group-hover:opacity-100 transition-opacity">
-                {taskToRender.isPrivate && (
-                  <Lock className={cn(TASK_ICON_SIZE, "text-yellow-500 dark:text-yellow-400")} title="Private Task" />
-                )}
+                {/* Removed Lock icon for isPrivate */}
                 {subtasks && subtasks.length > 0 && (
                   <ListTree
                     className={cn(TASK_ICON_SIZE, "text-blue-500 dark:text-blue-400")}

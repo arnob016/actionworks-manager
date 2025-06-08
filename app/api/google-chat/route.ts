@@ -44,7 +44,6 @@ const mapTaskToSupabaseTask = (taskData: Partial<Task> | Partial<TaskFormData>):
   if (taskData.reporter !== undefined) supabaseData.reporter = taskData.reporter
   if (taskData.parentId !== undefined) supabaseData.parent_id = taskData.parentId
   if (taskData.tags !== undefined) supabaseData.tags = taskData.tags
-  if (taskData.isPrivate !== undefined) supabaseData.is_private = taskData.isPrivate
   return supabaseData
 }
 
@@ -65,7 +64,6 @@ const mapSupabaseTaskToTask = (supabaseTask: any): Task => {
     reporter: supabaseTask.reporter,
     parentId: supabaseTask.parent_id,
     tags: supabaseTask.tags || [],
-    isPrivate: supabaseTask.is_private || false,
     attachments: [],
     comments: [],
     createdAt: supabaseTask.created_at,
@@ -74,10 +72,9 @@ const mapSupabaseTaskToTask = (supabaseTask: any): Task => {
 }
 
 function buildSystemPrompt(currentUser = "User") {
-  // Accept currentUser
   const today = new Date().toLocaleDateString("en-CA")
-  const availableStatuses = staticConfig.statuses.join(", ")
-  const availablePriorities = Object.keys(staticConfig.priorities).join(", ")
+  const availableStatuses = staticConfig.statuses.map((s) => s.name).join(", ")
+  const availablePriorities = staticConfig.priorities.map((p) => p.name).join(", ")
   const availableAssignees = staticConfig.teamMembers.map((m) => m.name).join(", ")
   const availableProductAreas = staticConfig.productAreas.join(", ")
 
@@ -104,7 +101,7 @@ function buildSystemPrompt(currentUser = "User") {
        "taskDetails": {
          "title": "<task_title (string, required)>",
          "description": "<task_description (string, optional)>",
-         "reporter": "${currentUser}", // Default reporter
+         "reporter": "${currentUser}",
          // ... other fields like status, priority, assignees, dueDate, productArea
        },
        "responseText": "<A friendly message asking for confirmation. Clearly list the key details of the task you are proposing. e.g., 'Okay, ${currentUser}, I can create this task for you:\\nTitle: [title]\\nDue: [dueDate]\\nAssignees: [assignees].\\nShall I proceed? (You can click Confirm Task or Cancel below)'>"
@@ -117,7 +114,7 @@ function buildSystemPrompt(currentUser = "User") {
        "action": "CREATE_TASK",
        "params": {
          "title": "<task_title (string, required)>",
-         "reporter": "${currentUser}", // Ensure reporter is set
+         "reporter": "${currentUser}",
          // ... all other fields from the confirmed taskDetails
        },
        "responseText": "<A friendly confirmation message AFTER the task is created by the system. e.g., 'Alright, ${currentUser}, I've created the task: [task title].'>"
@@ -154,7 +151,7 @@ function buildSystemPrompt(currentUser = "User") {
 
   Important Rules:
   - ALWAYS respond with a single, valid JSON object. No extra text.
-  - If the user's input starts with "USER_CONFIRMED_TASK_CREATION::", the system will handle the task creation directly using the JSON payload. You should then generate a GENERAL_CHAT response confirming the action if needed, or simply let the system's success message suffice.
+  - If the user's input starts with "USER_CONFIRMED_TASK_CREATION::", the system will handle the task creation directly using the JSON payload.
   - If the user's input starts with "USER_CANCELLED_TASK_CREATION::", respond with a GENERAL_CHAT action, acknowledging the cancellation.
   - For regular user messages, if intent is to create, use PROPOSE_TASK_CREATION.
   - If crucial information for PROPOSE_TASK_CREATION is missing (like title), use 'responseText' to ask for it, and set action to GENERAL_CHAT.
@@ -171,12 +168,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    let { message: userMessage, currentUser } = await request.json() // Destructure currentUser
+    let { message: userMessage, currentUser } = await request.json()
     if (!userMessage) {
       return NextResponse.json({ error: "No message provided" }, { status: 400 })
     }
     if (!currentUser) {
-      currentUser = "User" // Default if not provided
+      currentUser = "User"
     }
 
     if (userMessage.startsWith("USER_CONFIRMED_TASK_CREATION::")) {
@@ -184,7 +181,7 @@ export async function POST(request: NextRequest) {
         const taskDetailsJson = userMessage.substring("USER_CONFIRMED_TASK_CREATION::".length)
         const taskDataToCreate = JSON.parse(taskDetailsJson)
 
-        if (!taskDataToCreate.reporter) taskDataToCreate.reporter = currentUser // Use currentUser
+        if (!taskDataToCreate.reporter) taskDataToCreate.reporter = currentUser
         if (!taskDataToCreate.status) taskDataToCreate.status = "To Do"
         if (!taskDataToCreate.priority) taskDataToCreate.priority = "Medium"
 
@@ -235,7 +232,7 @@ export async function POST(request: NextRequest) {
     }
 
     const model = genAI.getGenerativeModel({ model: MODEL_NAME })
-    const fullPrompt = `${buildSystemPrompt(currentUser)}\n\nUser message:\n"""\n${userMessage}\n"""\nJSON Response:\n` // Pass currentUser to prompt
+    const fullPrompt = `${buildSystemPrompt(currentUser)}\n\nUser message:\n"""\n${userMessage}\n"""\nJSON Response:\n`
 
     const result = await model.generateContent(fullPrompt)
     const aiResponseText = result.response.text()
@@ -261,7 +258,6 @@ export async function POST(request: NextRequest) {
 
     switch (structuredResponse.action) {
       case "PROPOSE_TASK_CREATION":
-        // Ensure reporter is set if AI forgets
         if (structuredResponse.taskDetails && !structuredResponse.taskDetails.reporter) {
           structuredResponse.taskDetails.reporter = currentUser
         }
@@ -275,7 +271,7 @@ export async function POST(request: NextRequest) {
         )
       case "CREATE_TASK":
         const taskDataToCreate = structuredResponse.params
-        if (!taskDataToCreate.reporter) taskDataToCreate.reporter = currentUser // Use currentUser
+        if (!taskDataToCreate.reporter) taskDataToCreate.reporter = currentUser
         if (!taskDataToCreate.status) taskDataToCreate.status = "To Do"
         if (!taskDataToCreate.priority) taskDataToCreate.priority = "Medium"
 
@@ -314,17 +310,10 @@ export async function POST(request: NextRequest) {
           { status: 200 },
         )
 
-      // UPDATE_TASK and QUERY_TASKS cases remain largely the same,
-      // but their responseText can now incorporate `currentUser` if desired from the prompt.
-      // For brevity, I'm not repeating them here but ensure the prompt changes are reflected.
       case "UPDATE_TASK":
         const { taskIdentifier, updates } = structuredResponse.params
         let taskToUpdate
-        const { data: taskById, error: idError } = await supabase
-          .from("tasks")
-          .select()
-          .eq("id", taskIdentifier)
-          .single()
+        const { data: taskById } = await supabase.from("tasks").select().eq("id", taskIdentifier).single()
 
         if (taskById) {
           taskToUpdate = taskById
