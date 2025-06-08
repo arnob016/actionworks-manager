@@ -44,7 +44,10 @@ const openSans = Open_Sans({
 export const metadata: Metadata = {
   title: "Portal ART3MIS",
   description: "Autonomous Response & Task Efficiency Management Intelligence System",
-    generator: 'v0.dev'
+  icons: [
+    { rel: "icon", url: "/favicon.ico" },
+    { rel: "shortcut icon", url: "/favicon.ico" },
+  ],
 }
 
 export default function RootLayout({
