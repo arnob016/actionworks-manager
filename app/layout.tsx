@@ -42,9 +42,8 @@ const openSans = Open_Sans({
 })
 
 export const metadata: Metadata = {
-  title: "ActionWorks Manager",
-  description: "Manage your tasks efficiently.",
-    generator: 'v0.dev'
+  title: "Portal ART3MIS",
+  description: "Autonomous Response & Task Efficiency Management Intelligence System",
 }
 
 export default function RootLayout({

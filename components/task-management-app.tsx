@@ -20,6 +20,8 @@ import type { ViewMode, Task, TaskFormData } from "@/lib/types"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+// Add AiChatWidget import
+import { AiChatWidget } from "./ai-chat-widget"
 
 const CURRENT_USER = "Zonaid" // This should ideally come from an auth system
 
@@ -318,6 +320,8 @@ export function TaskManagementApp() {
           )}
         </main>
       </div>
+      {/* Add the AiChatWidget here, so it's overlaid on the app */}
+      <AiChatWidget />
       <TaskModal
         isOpen={showTaskModal}
         onClose={handleCloseModal}
