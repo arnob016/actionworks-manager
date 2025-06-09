@@ -17,6 +17,7 @@ interface Message {
   role: "user" | "assistant"
   content: string
   isProposal?: boolean
+  proposalData?: any // Stores the full proposal object from ART3MIS
   userName?: string
 }
 
@@ -27,7 +28,7 @@ export function AiChatWidget() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [pendingTaskCreationDetails, setPendingTaskCreationDetails] = useState<any | null>(null)
+  const [activeProposal, setActiveProposal] = useState<any | null>(null)
 
   const { teamMembers } = useConfigStore()
   const [currentUser, setCurrentUser] = useState<string>(() => teamMembers[0]?.name || "User")
@@ -42,8 +43,9 @@ export function AiChatWidget() {
     messageContent: string,
     isUserInitiatedSubmit = true,
     userSpeaking = currentUser,
+    confirmedProposalData?: any, // Used when confirming a proposal
   ) => {
-    if (isUserInitiatedSubmit) {
+    if (isUserInitiatedSubmit && messageContent.trim()) {
       const userMessage: Message = {
         id: Date.now().toString(),
         role: "user",
@@ -54,13 +56,21 @@ export function AiChatWidget() {
     }
     setInput("")
     setIsLoading(true)
-    setPendingTaskCreationDetails(null)
+    setActiveProposal(null) // Clear previous proposal when sending new message or confirming
 
     try {
+      const requestBody: any = { currentUser }
+      if (confirmedProposalData) {
+        requestBody.message = "USER_CONFIRMED_PROPOSAL"
+        requestBody.proposalToConfirm = confirmedProposalData
+      } else {
+        requestBody.message = messageContent
+      }
+
       const response = await fetch("/api/google-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageContent, currentUser: userSpeaking }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
@@ -71,10 +81,12 @@ export function AiChatWidget() {
       const data = await response.json()
       const assistantMessageContent = data.responseText || "Sorry, I didn't get a clear response."
       let isProposal = false
+      let proposalDataForMessage: any = null
 
-      if (data.action === "PROPOSE_TASK_CREATION" && data.taskDetails) {
-        setPendingTaskCreationDetails(data.taskDetails)
+      if (data.action === "PROPOSE_TASK_OPERATIONS" || data.action === "PROPOSE_CONFIGURATION_CHANGE") {
+        setActiveProposal(data) // Set the full proposal data
         isProposal = true
+        proposalDataForMessage = data
       }
 
       const assistantMessage: Message = {
@@ -82,11 +94,14 @@ export function AiChatWidget() {
         role: "assistant",
         content: assistantMessageContent,
         isProposal: isProposal,
+        proposalData: proposalDataForMessage,
       }
       setMessages((prev) => [...prev, assistantMessage])
 
-      if (data.taskCreated === true || data.taskUpdated === true) {
-        useTaskStore.getState().fetchTasks()
+      if (data.operationsProcessed === true) {
+        // Check if operations were processed (after confirmation)
+        useTaskStore.getState().fetchTasks() // Refresh tasks if any CUD operation happened
+        // Potentially refresh config if config changes were made and store supports it
       }
     } catch (error: any) {
       console.error("Chat error:", error)
@@ -103,35 +118,35 @@ export function AiChatWidget() {
 
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault()
-    if (!input.trim()) return
+    if (!input.trim() || activeProposal) return // Don't allow new messages if a proposal is pending
     sendMessageToServer(input, true, currentUser)
   }
 
-  const handleConfirmTask = () => {
-    if (!pendingTaskCreationDetails) return
-    const confirmationMessage = `USER_CONFIRMED_TASK_CREATION::${JSON.stringify(pendingTaskCreationDetails)}`
+  const handleConfirmProposal = () => {
+    if (!activeProposal) return
     const userConfirmationDisplayMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: "Yes, please create the task.",
+      content: "Yes, please proceed.",
       userName: currentUser,
     }
     setMessages((prev) => [...prev, userConfirmationDisplayMessage])
-    sendMessageToServer(confirmationMessage, false, currentUser)
-    setPendingTaskCreationDetails(null)
+    sendMessageToServer("USER_CONFIRMED_PROPOSAL", false, currentUser, activeProposal)
+    // setActiveProposal(null) // Cleared in sendMessageToServer
   }
 
-  const handleCancelTask = () => {
-    const cancellationMessage = "USER_CANCELLED_TASK_CREATION::Please disregard the previous task proposal."
+  const handleCancelProposal = () => {
+    if (!activeProposal) return
     const userCancellationDisplayMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: "No, don't create it yet.",
+      content: "No, cancel that.",
       userName: currentUser,
     }
     setMessages((prev) => [...prev, userCancellationDisplayMessage])
-    sendMessageToServer(cancellationMessage, false, currentUser)
-    setPendingTaskCreationDetails(null)
+    // Send a message to ART3MIS indicating cancellation
+    sendMessageToServer("USER_CANCELLED_PROPOSAL", false, currentUser, activeProposal)
+    // setActiveProposal(null); // Cleared in sendMessageToServer
   }
 
   useEffect(() => {
@@ -151,14 +166,14 @@ export function AiChatWidget() {
           {
             id: "initial-greeting",
             role: "assistant",
-            content: "Hello! I'm ART3MIS. How can I help you manage your tasks today?",
+            content: "Hello! I'm ART3MIS. How can I help you manage your tasks or configurations today?",
           },
         ])
       }
     } else {
-      setPendingTaskCreationDetails(null)
+      setActiveProposal(null) // Clear proposal when modal closes
     }
-  }, [isModalOpen, messages.length])
+  }, [isModalOpen]) // Removed messages.length dependency to avoid re-triggering initial message
 
   const getUserInitials = (name: string) => {
     if (!name) return "U"
@@ -249,27 +264,27 @@ export function AiChatWidget() {
                 </div>
                 {msg.role === "assistant" &&
                   msg.isProposal &&
-                  pendingTaskCreationDetails &&
-                  messages[messages.length - 1]?.id === msg.id && (
+                  activeProposal && // Check activeProposal state
+                  messages[messages.length - 1]?.id === msg.id && ( // Only show for the latest proposal message
                     <div className="flex justify-start space-x-2 mt-2 ml-10">
                       <Button
                         size="sm"
-                        onClick={handleConfirmTask}
+                        onClick={handleConfirmProposal}
                         className="bg-green-600 hover:bg-green-700 text-white text-xs"
                         disabled={isLoading}
                       >
                         <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
-                        Confirm Task
+                        Confirm
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={handleCancelTask}
+                        onClick={handleCancelProposal}
                         className="text-xs"
                         disabled={isLoading}
                       >
                         <XCircle className="w-3.5 h-3.5 mr-1.5" />
-                        Cancel / Rethink
+                        Cancel
                       </Button>
                     </div>
                   )}
@@ -291,7 +306,7 @@ export function AiChatWidget() {
           onSubmit={handleSubmit}
           className={cn(
             "flex items-center space-x-2 p-4 border-t border-border",
-            pendingTaskCreationDetails && "opacity-50 pointer-events-none",
+            activeProposal && "opacity-50 pointer-events-none", // Disable input when proposal is active
           )}
         >
           <Input
@@ -299,18 +314,16 @@ export function AiChatWidget() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              pendingTaskCreationDetails
-                ? "Please confirm or cancel the task above."
-                : "Ask about tasks or give commands..."
+              activeProposal ? "Please confirm or cancel the proposal above." : "Ask about tasks or give commands..."
             }
             className="flex-grow h-10 text-sm"
-            disabled={isLoading || !!pendingTaskCreationDetails}
+            disabled={isLoading || !!activeProposal}
             aria-label="Chat input"
           />
           <Button
             type="submit"
             size="icon"
-            disabled={isLoading || !input.trim() || !!pendingTaskCreationDetails}
+            disabled={isLoading || !input.trim() || !!activeProposal}
             className="h-10 w-10 flex-shrink-0"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

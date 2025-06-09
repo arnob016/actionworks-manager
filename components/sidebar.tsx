@@ -20,7 +20,7 @@ import { staticConfig } from "@/lib/config"
 import type { ViewMode } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
-import { useTaskStore } from "@/lib/store"
+import { useTaskStore, useConfigStore } from "@/lib/store"
 import { Separator } from "@/components/ui/separator"
 
 interface SidebarProps {
@@ -74,6 +74,8 @@ export function Sidebar({
   activeFilterCount,
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const config = useConfigStore()
+  const productAreas = config.productAreas
 
   const commonButtonClass =
     "w-full justify-start text-muted-foreground hover:bg-accent hover:text-foreground text-sm h-9"
@@ -169,7 +171,7 @@ export function Sidebar({
             <Folder className={cn("w-4 h-4", !isCollapsed && "mr-2.5")} />
             {!isCollapsed && <span className="text-xs">All Projects</span>}
           </Button>
-          {staticConfig.productAreas.map((area) => (
+          {productAreas.map((area) => (
             <Button
               key={area}
               variant="ghost"

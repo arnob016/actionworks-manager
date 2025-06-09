@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { useConfigStore } from "@/lib/store"
 
 interface TopNavbarProps {
   currentView: ViewMode
@@ -36,7 +37,8 @@ export function TopNavbar({
   currentProductArea,
   onProductAreaChange,
 }: TopNavbarProps) {
-  const productAreas = Array.isArray(staticConfig?.productAreas) ? staticConfig.productAreas : []
+  const config = useConfigStore()
+  const productAreas = config.productAreas
   const viewsEnabled = Array.isArray(staticConfig?.viewsEnabled) ? staticConfig.viewsEnabled : []
 
   return (
